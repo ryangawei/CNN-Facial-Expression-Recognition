@@ -43,6 +43,10 @@ class CNN(object):
         self.vocab = ''
 
     def setCNN(self):
+        """
+        在此函数中设定CNN模型
+        :return:
+        """
         def filter_variable(shape):
             # 通过Truncated normal distribution（截断正态分布）生成随机数tensor
             init = tf.truncated_normal(shape=shape, stddev=0.1)
@@ -137,6 +141,14 @@ class CNN(object):
             self.accuracy = tf.reduce_mean(tf.cast(correct_predictions, tf.float32))
 
     def convert_input(self, pixels, labels):
+        """
+        把读取的字符串数据转为形状为[batch_size, img_size, img_size, 1]的数组，
+        作为CNN的输入
+
+        :param pixels:
+        :param labels:
+        :return:
+        """
         batch_x = []
         for row in pixels:
             batch_x.append([int(x) for x in row.decode('utf-8').split()])
