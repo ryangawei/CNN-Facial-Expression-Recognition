@@ -67,10 +67,13 @@ class CNN(object):
             kernel_size=[3, 3],
             strides=[1, 1],
             padding='SAME',
-            activation=tf.nn.relu,
+            activation=None,
             kernel_initializer=tf.initializers.truncated_normal(stddev=0.1),
             bias_initializer=tf.initializers.constant(0.1),
         )
+        # 加入批标准化(batch normalization)，减少过拟合
+        output_1_conv = tf.layers.batch_normalization(output_1_conv, training=self.training)
+        output_1_conv = tf.nn.relu(output_1_conv)
         # 2_池化层
         output_2_max_pool = tf.layers.max_pooling2d(
             inputs=output_1_conv,
