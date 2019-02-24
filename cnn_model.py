@@ -18,7 +18,7 @@ class CNNConfig(object):
     train_batch_size = 128         # 每批训练大小
     test_batch_size = 500        # 每批测试大小
     test_per_batch = 250           # 每多少批进行一次测试
-    epoch_num = 30001        # 总迭代轮次
+    epoch_num = 25001        # 总迭代轮次
 
 
 class CNN(object):
@@ -32,6 +32,7 @@ class CNN(object):
         self.batch_x = ''
         self.batch_y = ''
         self.input_x = ''
+        self.labels = ''
         self.input_y = ''
         self.dropout_keep_prob = ''
         self.training = ''
@@ -45,49 +46,9 @@ class CNN(object):
     def setCNN(self):
         """
         在此函数中设定CNN模型
-        :return:
+        参考subnet1, Tabel I
+        from https://ieeexplore.ieee.org/document/7756145
         """
-        def filter_variable(shape):
-            # 通过Truncated normal distribution（截断正态分布）生成随机数tensor
-            init = tf.truncated_normal(shape=shape, stddev=0.1)
-            return tf.Variable(init)
-
-        def weight_variable(shape):
-            # 通过Truncated normal distribution（截断正态分布）生成随机数tensor
-            init = tf.truncated_normal(shape=shape, stddev=0.1)
-            return tf.Variable(init)
-
-        def bias_variable(shape):
-            init = tf.constant(0.1, shape=shape)
-            return tf.Variable(init)
-
-        def conv2d(input, filter):
-            """
-            tf.nn.conv2d()创建一个处理2维的卷积层\n
-            input是输入的数据，shape=[batch, in_height, in_width, in_channels]\n
-            filter是卷积核的参数，也即卷积层的参数，
-            shape=[filter_height, filter_widt,h in_channels, out_channels]\n
-            in_channels即输入的通道数，黑白为1，RGB为3\n
-            out_channels即卷积层的深度（卷积核个数）\n
-            stirde[1, horizontal, vertical, 1]是步长\n
-            padding表示卷积的方式，"SAME"通过填充图像使卷积后的输出和原图像大小一致，
-            "VALID"则不填充，卷积剩下的像素直接舍弃
-            """
-            return tf.nn.conv2d(input=input, filter=filter, strides=[1, 1, 1, 1], padding="VALID")
-
-        def max_pool_3x3_2(input):
-            """
-            x是输入的数据\n
-            ksize是池化窗口的大小[1, height, width, 1]\n
-            stride同conv2d的stride\n
-            """
-            return tf.nn.max_pool(input, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1], padding="SAME")
-
-        def max_pool_5x5_1(input):
-            return tf.nn.max_pool(input, ksize=[1, 5, 5, 1], strides=[1, 1, 1, 1], padding="SAME")
-
-        def max_pool_2x2_2(input):
-            return tf.nn.max_pool(input, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding="SAME")
 
         # Input layer
         self.input_x = tf.placeholder(tf.float32, [None, self.img_size, self.img_size, 1], name="input_x")
@@ -99,40 +60,89 @@ class CNN(object):
         # 验证或测试时应为False
         self.training = tf.placeholder(tf.bool, name='training')
 
-        # 1_conv
-        filter1 = filter_variable(shape=[5, 5, 1, 32])
-        b1 = bias_variable(shape=[32])
-        output_1_conv = tf.nn.relu(conv2d(input=self.input_x, filter=filter1) + b1)  # output 44*44*32
-        output_1_conv = tf.layers.batch_normalization(output_1_conv, training=self.training)
-        # 2_max_pool
-        output_2_max_pool = max_pool_3x3_2(output_1_conv)  # output 22*22*32
-        # 3_conv
-        filter3 = filter_variable(shape=[5, 5, 32, 64])
-        b3 = bias_variable(shape=[64])
-        output_3_conv = tf.nn.relu(conv2d(input=output_2_max_pool, filter=filter3) + b3)
-        # output 18*18*64
-        # 4_max_pool
-        output_4_max_pool = max_pool_5x5_1(input=output_3_conv)  # output 18*18*64
-        # 5_conv
-        filter5 = filter_variable(shape=[4, 4, 64, 128])
-        b5 = bias_variable(shape=[128])
-        output_5_conv = tf.nn.relu(conv2d(input=output_4_max_pool, filter=filter5) + b5)  # output 15*15*128
-        # 6_fc with 3072 neurons
-        W6 = weight_variable(shape=[15 * 15 * 128, 2048])
-        b6 = bias_variable(shape=[2048])
-        output_5_conv_flat = tf.reshape(output_5_conv, shape=[-1, 15 * 15 * 128])
-        output_6_fc = tf.nn.relu(tf.matmul(output_5_conv_flat, W6) + b6)
-        # output -1*2048
-        # 7_fc with 7 neurons
-        W7 = weight_variable(shape=[2048, self.class_num])
-        b7 = bias_variable(shape=[self.class_num])
-        output_7_fc = tf.matmul(output_6_fc, W7) + b7
+        # 1_卷积层
+        output_1_conv = tf.layers.conv2d(
+            inputs=self.input_x,
+            filters=64,
+            kernel_size=[3, 3],
+            strides=[1, 1],
+            padding='SAME',
+            activation=tf.nn.relu,
+            kernel_initializer=tf.initializers.truncated_normal(stddev=0.1),
+            bias_initializer=tf.initializers.constant(0.1),
+        )
+        # 2_池化层
+        output_2_max_pool = tf.layers.max_pooling2d(
+            inputs=output_1_conv,
+            pool_size=[2, 2],
+            strides=[2, 2]
+        )
+        # 3_卷积层
+        output_3_conv = tf.layers.conv2d(
+            inputs=output_2_max_pool,
+            filters=128,
+            kernel_size=[3, 3],
+            strides=[1, 1],
+            padding='SAME',
+            activation=tf.nn.relu,
+            kernel_initializer=tf.initializers.truncated_normal(stddev=0.1),
+            bias_initializer=tf.initializers.constant(0.1),
+        )
+        # 4_池化层
+        output_4_max_pool = tf.layers.max_pooling2d(
+            inputs=output_3_conv,
+            pool_size=[2, 2],
+            strides=[2, 2]
+        )
+        # 5_卷积层
+        output_5_conv = tf.layers.conv2d(
+            inputs=output_4_max_pool,
+            filters=256,
+            kernel_size=[3, 3],
+            strides=[1, 1],
+            padding='SAME',
+            activation=tf.nn.relu,
+            kernel_initializer=tf.initializers.truncated_normal(stddev=0.1),
+            bias_initializer=tf.initializers.constant(0.1)
+        )
+        # 6_池化层
+        output_6_max_pool = tf.layers.max_pooling2d(
+            inputs=output_5_conv,
+            pool_size=[2, 2],
+            strides=[2, 2]
+        )
+        # 输出形状为[-1, 6, 6, 256]
+        output_6_max_pool = tf.reshape(output_6_max_pool, [-1, 9216])
+        # 7_全连接层
+        output_7_fc = tf.layers.dense(
+            inputs=output_6_max_pool,
+            units=4096,
+            activation=tf.nn.relu,
+            kernel_initializer=tf.initializers.truncated_normal(stddev=0.1),
+            bias_initializer=tf.initializers.constant(0.1)
+        )
+        # 8_全连接层
+        output_8_fc = tf.layers.dense(
+            inputs=output_7_fc,
+            units=4096,
+            activation=tf.nn.relu,
+            kernel_initializer=tf.initializers.truncated_normal(stddev=0.1),
+            bias_initializer=tf.initializers.constant(0.1)
+        )
+        # 9_输出层
+        score = tf.layers.dense(
+            inputs=output_8_fc,
+            units=self.class_num,
+            activation=None,
+            kernel_initializer=tf.initializers.truncated_normal(stddev=0.1),
+            bias_initializer=tf.initializers.constant(0.1)
+        )
 
-        self.prediction = tf.argmax(output_7_fc, 1, name='prediction')
+        self.prediction = tf.argmax(score, 1, name='prediction')
 
         # Loss function
         with tf.name_scope('loss'):
-            losses = tf.nn.softmax_cross_entropy_with_logits_v2(logits=output_7_fc, labels=self.input_y)
+            losses = tf.nn.softmax_cross_entropy_with_logits_v2(logits=score, labels=self.input_y)
             self.loss = tf.reduce_mean(losses)
 
         # Calculate accuracy
