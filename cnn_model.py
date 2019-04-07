@@ -10,17 +10,16 @@ class CNNConfig(object):
     """
     # TODO: 在此修改TextCNN以及训练的参数
     """
-
-    class_num = 7        # 输出类别的数目
-    img_size = 48          # 图像的尺寸
-    crop_size = 43          # 数据增强时，随机裁剪的尺寸
-
-    dropout_keep_prob = 0.5     # dropout保留比例（弃用）
-    learning_rate = 1e-3    # 学习率
-    train_batch_size = 128         # 每批训练大小
-    test_batch_size = 500        # 每批测试大小
-    test_per_batch = 250           # 每多少批进行一次测试
-    epoch_num = 25        # 总迭代轮次
+    def __init__(self):
+        self.class_num = 7        # 输出类别的数目
+        self.img_size = 48          # 图像的尺寸
+        self.crop_size = 43          # 数据增强时，随机裁剪的尺寸
+        self.dropout_keep_prob = 0.5     # dropout保留比例（弃用）
+        self.learning_rate = 1e-4   # 学习率
+        self.train_batch_size = 128         # 每批训练大小
+        self.test_batch_size = 500        # 每批测试大小
+        self.test_per_batch = 250           # 每多少批进行一次测试
+        self.epoch_num = 25        # 总迭代轮次
 
 
 class CNN(object):
@@ -75,8 +74,8 @@ class CNN(object):
                 strides=[stride, stride],
                 padding='SAME',
                 activation=tf.nn.relu,
-                kernel_initializer=tf.initializers.truncated_normal(stddev=0.1),
-                bias_initializer=tf.initializers.constant(0.1),
+                kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
+                bias_initializer=tf.initializers.constant(0.0),
             )
 
         def _maxpool_2x2(input):
@@ -84,7 +83,7 @@ class CNN(object):
                 inputs=input,
                 pool_size=[2, 2],
                 strides=[2, 2],
-                padding='SAME'
+                padding='SAME',
             )
 
         def _fc(input, units, dropout_keep_prob=self.dropout_keep_prob):
@@ -92,15 +91,13 @@ class CNN(object):
             inputs=input,
             units=units,
             activation=tf.nn.relu,
-            kernel_initializer=tf.initializers.truncated_normal(stddev=0.1),
-            bias_initializer=tf.initializers.constant(0.1)
+            kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
+            bias_initializer=tf.initializers.constant(0.0)
             )
             return tf.layers.dropout(fc_output, dropout_keep_prob)
 
-
         # 加入批标准化以减少过拟合
         input_x_norm = tf.layers.batch_normalization(self.input_x_enhanced, training=self.training)
-
         # conv3-64
         conv3_64_1 = _conv(input_x_norm, 3, 1, 64)
         conv3_64_output = _conv(conv3_64_1, 3, 1, 64)
@@ -198,12 +195,12 @@ class CNN(object):
         # ==========================================================
         print('Shuffling dataset...')
         # 打乱数据
-        self.test_dataset = self.test_dataset.shuffle(preprocess.TEST_SIZE).batch(self.test_batch_size)
-        self.train_dataset = self.train_dataset.shuffle(preprocess.TRAIN_SIZE).batch(self.train_batch_size)
+        train_dataset = self.train_dataset.batch(self.train_batch_size)
+        test_dataset = self.test_dataset.batch(self.test_batch_size)
 
         # Create a reinitializable iterator
-        train_iterator = self.train_dataset.make_initializable_iterator()
-        test_iterator = self.test_dataset.make_initializable_iterator()
+        train_iterator = train_dataset.make_initializable_iterator()
+        test_iterator = test_dataset.make_initializable_iterator()
 
         train_init_op = train_iterator.initializer
         test_init_op = test_iterator.initializer
@@ -219,9 +216,9 @@ class CNN(object):
     def data_enhance(self, images):
         # 对图片进行数据增强
         # 随机水平翻转
-        images = tf.image.random_flip_left_right(images)
+        # images = tf.image.random_flip_left_right(images)
         # 随机裁剪
-        images = tf.image.random_crop(images, [self.train_batch_size, self.crop_size, self.crop_size, 1])
+        # images = tf.image.random_crop(images, [self.train_batch_size ,self.crop_size, self.crop_size, 1])
         # images = tf.image.random_saturation(images, 0.5, 1.5)
         # images = tf.image.random_contrast(images, 0.5, 1.5)
         return images
