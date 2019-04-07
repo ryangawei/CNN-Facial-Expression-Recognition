@@ -5,23 +5,26 @@ from PIL import Image
 import cv2
 import random
 
-data_path = 'fer2013.csv'
-train_data_path = 'train.csv'
-test_data_path = 'test.csv'
-valid_train_data_path = 'valid_train.csv'
-valid_test_data_path = 'valid_test.csv'
-temp_data_path = 'temp.csv'
+DATA_PATH = 'fer2013.csv'
+TRAIN_PATH = 'train.csv'
+TEST_PATH = 'test.csv'
+VALID_TRAIN_PATH = 'valid_train.csv'
+VALID_TEST_PATH = 'valid_test.csv'
+TEMP_PATH = 'temp.csv'
 
-valid_train_size = 14980
-valid_test_size = 4769
+TRAIN_SIZE = 28709
+TEST_SIZE = 7179
+
+VALID_TRAIN_SIZE = 14980
+VALID_TEST_SIZE = 4769
 
 
 def seperate_dataset():
     # 读取原始csv数据
     # 分为训练集和测试集
-    readfile = open(data_path, mode='r')
+    readfile = open(DATA_PATH, mode='r')
     # writefile = open(train_data_path, mode='w', newline='')
-    writefile = open(test_data_path, mode='w', newline='')
+    writefile = open(TEST_PATH, mode='w', newline='')
 
     reader = csv.reader(readfile)       # 通过file创建一个reader
     writer = csv.writer(writefile)      # reader是一个二维数组
@@ -30,7 +33,7 @@ def seperate_dataset():
 
     rows = []
     for row in reader:
-        if (row[2] == 'PublicTest' or row[2] == 'PrivateTest'):
+        if row[2] == 'PublicTest' or row[2] == 'PrivateTest':
             rows.append(row)
     writer.writerows(rows)
 
@@ -38,10 +41,9 @@ def seperate_dataset():
     writefile.close()
 
 
-def convert_to_image():
-
-    # 将csv转换为numpy数组，再通过PIL转换为jpg
-    readfile = open(data_path, mode='r')
+def convert_csv_to_jpg():
+    # 将csv转换为numpy数组，再通过PIL转换为jpg，进行可视化查看
+    readfile = open(DATA_PATH, mode='r')
     reader = csv.reader(readfile)
     header = next(reader)    # 跳过第一行标题
     i = 0
@@ -59,7 +61,6 @@ def convert_to_image():
 
 
 def filter_data():
-
     # 删除无法识别人脸的样本
     # 加载opencv的人脸识别文件
     # 'haarcascade_frontalface_alt' higher accuracy, but slower
@@ -103,7 +104,7 @@ def filter_data():
     print ("In %d images, %d valid images with faces!" % (total, i))
 
     # 将有效样本写回.csv文件中
-    writefile = open(valid_train_data_path, mode='w', newline='')
+    writefile = open(VALID_TRAIN_PATH, mode='w', newline='')
     writer = csv.writer(writefile)      #
     writer.writerow(['emotion', 'pixels', 'Usage'])   # 给新数据写入标题行
 
