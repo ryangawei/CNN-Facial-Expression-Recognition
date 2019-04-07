@@ -129,8 +129,10 @@ dmypy.json
 # Intelli project folder
 .idea/
 
-# Tensorboard file
+# Tensorboard and checkpoints folder
 tensorboard/
+checkpoints/
 
 # zip file
 *.zip
+
