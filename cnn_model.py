@@ -12,9 +12,8 @@ class CNNConfig(object):
     """
     def __init__(self):
         self.class_num = 7        # 输出类别的数目
-        self.img_size = 48          # 图像的尺寸
-        self.crop_size = 43          # 数据增强时，随机裁剪的尺寸
-        self.dropout_keep_prob = 0.5     # dropout保留比例（弃用）
+        self.img_size = preprocess.crop_size       # 图像的尺寸
+        self.dropout_keep_prob = 0.5     # dropout保留比例
         self.learning_rate = 1e-4   # 学习率
         self.train_batch_size = 128         # 每批训练大小
         self.test_batch_size = 500        # 每批测试大小
@@ -26,7 +25,6 @@ class CNN(object):
     def __init__(self, config):
         self.class_num = config.class_num
         self.img_size = config.img_size
-        self.crop_size = config.crop_size
         self.train_batch_size = config.train_batch_size
         self.test_batch_size = config.test_batch_size
         self.test_per_batch = config.test_per_batch
@@ -46,12 +44,6 @@ class CNN(object):
         self.vocab = ''
 
     def _set_input(self):
-        """
-        在此函数中设定CNN模型
-        参考subnet1, Tabel I
-        from https://ieeexplore.ieee.org/document/7756145
-        """
-
         # Input layer
         self.input_x = tf.placeholder(tf.float32, [None, self.img_size, self.img_size, 1], name="input_x")
         self.labels = tf.placeholder(tf.int32, [None], name="labels")
@@ -63,8 +55,11 @@ class CNN(object):
         self.training = tf.placeholder(tf.bool, name='training')
 
     def setVGG16(self):
+        """
+        在此函数中设定模型
+        :return:
+        """
         self._set_input()
-        self.input_x_enhanced = self.data_enhance(self.input_x)
 
         def _conv(input, ksize, stride, filters):
             return tf.layers.conv2d(
@@ -97,7 +92,7 @@ class CNN(object):
             return tf.layers.dropout(fc_output, dropout_keep_prob)
 
         # 加入批标准化以减少过拟合
-        input_x_norm = tf.layers.batch_normalization(self.input_x_enhanced, training=self.training)
+        input_x_norm = tf.layers.batch_normalization(self.input_x, training=self.training)
         # conv3-64
         conv3_64_1 = _conv(input_x_norm, 3, 1, 64)
         conv3_64_output = _conv(conv3_64_1, 3, 1, 64)
@@ -115,7 +110,8 @@ class CNN(object):
         # conv3-256
         conv3_256_1 = _conv(maxpool_2_output, 3, 1, 256)
         conv3_256_2 = _conv(conv3_256_1, 3, 1, 256)
-        conv3_256_output = _conv(conv3_256_2, 3, 1, 256)
+        conv3_256_3 = _conv(conv3_256_2, 3, 1, 256)
+        conv3_256_output = _conv(conv3_256_3, 3, 1, 256)
 
         # maxpool-3
         maxpool_3_output = _maxpool_2x2(conv3_256_output)
@@ -123,7 +119,8 @@ class CNN(object):
         # conv3-512
         conv3_512_1 = _conv(maxpool_3_output, 3, 1, 512)
         conv3_512_2 = _conv(conv3_512_1, 3, 1, 512)
-        conv3_512_output = _conv(conv3_512_2, 3, 1, 512)
+        conv3_512_3 = _conv(conv3_512_2, 3, 1, 512)
+        conv3_512_output = _conv(conv3_512_3, 3, 1, 512)
 
         # maxpool-4
         maxpool_4_output = _maxpool_2x2(conv3_512_output)
@@ -131,7 +128,8 @@ class CNN(object):
         # conv4-512
         conv4_512_1 = _conv(maxpool_4_output, 3, 1, 512)
         conv4_512_2 = _conv(conv4_512_1, 3, 1, 512)
-        conv4_512_output = _conv(conv4_512_2, 3, 1, 512)
+        conv4_512_3 = _conv(conv4_512_2, 3, 1, 512)
+        conv4_512_output = _conv(conv4_512_3, 3, 1, 512)
 
         # maxpool-5
         maxpool_5_output = _maxpool_2x2(conv4_512_output)
@@ -187,16 +185,16 @@ class CNN(object):
         return batch_x, batch_y
 
     def prepare_data(self):
-        self.train_dataset = TextLineDataset(os.path.join('data', preprocess.TRAIN_PATH)).skip(1)
-        self.test_dataset = TextLineDataset(os.path.join('data', preprocess.TEST_PATH)).skip(1)
+        self.train_dataset = TextLineDataset(os.path.join('data', preprocess.ENHANCED_TRAIN_PATH)).skip(1)
+        self.test_dataset = TextLineDataset(os.path.join('data', preprocess.ENHANCED_TEST_PATH)).skip(1)
 
     def shuffle_datset(self):
         # 打乱数据集
         # ==========================================================
         print('Shuffling dataset...')
         # 打乱数据
-        train_dataset = self.train_dataset.batch(self.train_batch_size)
-        test_dataset = self.test_dataset.batch(self.test_batch_size)
+        train_dataset = self.train_dataset.shuffle(preprocess.ENHANCED_TRAIN_SIZE).batch(self.train_batch_size)
+        test_dataset = self.test_dataset.shuffle(preprocess.ENHANCED_TEST_SIZE).batch(self.test_batch_size)
 
         # Create a reinitializable iterator
         train_iterator = train_dataset.make_initializable_iterator()
@@ -212,16 +210,6 @@ class CNN(object):
 
         return train_init_op, test_init_op, next_train_element, next_test_element
         # ==============================================================
-
-    def data_enhance(self, images):
-        # 对图片进行数据增强
-        # 随机水平翻转
-        # images = tf.image.random_flip_left_right(images)
-        # 随机裁剪
-        # images = tf.image.random_crop(images, [self.train_batch_size ,self.crop_size, self.crop_size, 1])
-        # images = tf.image.random_saturation(images, 0.5, 1.5)
-        # images = tf.image.random_contrast(images, 0.5, 1.5)
-        return images
 
 
 
