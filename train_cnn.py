@@ -18,7 +18,6 @@ def train():
     with tf.Session(config=config) as sess:
         config = CNNConfig()
         cnn = CNN(config)
-        cnn.prepare_data()
         cnn.setVGG16()
 
         print('Setting Tensorboard and Saver...')
@@ -41,7 +40,8 @@ def train():
             os.makedirs(test_tensorboard_dir)
 
         # 训练结果记录
-        log_file = open(test_tensorboard_dir+'/log.txt', mode='w')
+        log_file = open(test_tensorboard_dir+'/log.csv', mode='w', encoding='utf-8')
+        log_file.write(','.join(['epoch', 'loss', 'precision', 'recall', 'f1_score']) + '\n')
 
         merged_summary = tf.summary.merge([tf.summary.scalar('loss', cnn.loss),
                                             tf.summary.scalar('accuracy', cnn.accuracy)])
@@ -50,11 +50,14 @@ def train():
         # =========================================================================
 
         global_step = tf.Variable(0, trainable=False)
+        # 衰减的学习率，每1000次衰减4%
+        learning_rate = tf.train.exponential_decay(config.learning_rate,
+                                                   global_step, decay_steps=5000, decay_rate=0.98, staircase=False)
 
         # 保证Batch normalization的执行
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):  # 保证train_op在update_ops执行之后再执行。
-            train_op = tf.train.AdamOptimizer(config.learning_rate).minimize(cnn.loss, global_step)
+            train_op = tf.train.AdamOptimizer(learning_rate).minimize(cnn.loss, global_step)
 
         # 训练步骤
         def train_step(batch_x, batch_y, keep_prob=config.dropout_keep_prob):
@@ -97,10 +100,20 @@ def train():
                         cnn.dropout_keep_prob: 1.0,
                         cnn.training: False
                     }
-                    loss, pred, true = sess.run([cnn.loss, cnn.prediction, cnn.labels], feed_dict)
+                    # loss, pred, true = sess.run([cnn.loss, cnn.prediction, cnn.labels], feed_dict)
+                    # 多次验证，取loss和score均值
+                    mean_loss = 0
+                    mean_score = 0
+                    for i in range(config.multi_test_num):
+                        loss, score = sess.run([cnn.loss, cnn.score], feed_dict)
+                        mean_loss += loss
+                        mean_score += score
+                    mean_loss /= config.multi_test_num
+                    mean_score /= config.multi_test_num
+                    pred = sess.run(tf.argmax(mean_score, 1))
                     y_pred.extend(pred)
-                    y_true.extend(true)
-                    test_loss += loss
+                    y_true.extend(batch_y)
+                    test_loss += mean_loss
                     i += 1
                 except tf.errors.OutOfRangeError:
                     # 遍历完验证集，计算评估
@@ -116,16 +129,16 @@ def train():
                     log = log + '\n' + ('precision: %0.6f, recall: %0.6f, f1_score: %0.6f' % (
                         test_precision, test_recall, test_f1_score))
                     print(log)
-                    log_file.write(log + '\n')
+                    log_file.write(','.join([str(epoch), str(test_loss),str(test_precision), str(test_recall),
+                                             str(test_f1_score)]) + '\n')
                     time.sleep(3)
                     return
 
         print('Start training CNN...')
         sess.run(tf.global_variables_initializer())
-
+        train_init_op, test_init_op, next_train_element, next_test_element = cnn.prepare_data()
         # Training loop
         for epoch in range(config.epoch_num):
-            train_init_op, test_init_op, next_train_element, next_test_element = cnn.shuffle_datset()
             sess.run(train_init_op)
             while True:
                 try:
@@ -138,7 +151,6 @@ def train():
                     # 计算验证集准确率
                     test_step(next_test_element)
                     break
-
         train_summary_writer.close()
         log_file.close()
         # 训练完成后保存参数
