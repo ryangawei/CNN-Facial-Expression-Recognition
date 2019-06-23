@@ -136,3 +136,9 @@ checkpoints/
 # zip file
 *.zip
 
+log/
+model/
+data/train
+data/valid
+data/test
+
